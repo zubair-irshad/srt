@@ -68,7 +68,7 @@ class SRTTrainer:
     def compute_loss(self, data, it):
         device = self.device
 
-        input_images = data.get('input_images').to(device)
+        input_images = data.get('input_images').to(device, dtype=torch.float)
         input_camera_pos = data.get('input_camera_pos').to(device)
         input_rays = data.get('input_rays').to(device)
         target_pixels = data.get('target_pixels').to(device)
@@ -108,6 +108,7 @@ class SRTTrainer:
             rays [n, h, w, 3]: ray directions
             render_kwargs: kwargs passed on to decoder
         """
+        print("render_kwargsww", render_kwargs)
         batch_size, height, width = rays.shape[:3]
         rays = rays.flatten(1, 2)
         camera_pos = camera_pos.unsqueeze(1).repeat(1, rays.shape[1], 1)
@@ -127,8 +128,11 @@ class SRTTrainer:
         for key in all_extras[0]:
             agg_extras[key] = torch.cat([extras[key] for extras in all_extras], 1)
             agg_extras[key] = agg_extras[key].view(batch_size, height, width, -1)
-
-        img = img.view(img.shape[0], height, width, 3)
+        
+        # for objectron only
+        img = img.reshape(img.shape[0], 3, height, width)
+        img = img.permute(0,2,3,1)
+        # img = img.view(img.shape[0], height, width, 3)
         return img, agg_extras
 
 
@@ -149,8 +153,10 @@ class SRTTrainer:
                 # rotating around the z axis doesn't make sense, we first undo this transform,
                 # then rotate, and then reapply it.
                 
-                transform = data['transform'].to(device)
-                inv_transform = torch.inverse(transform)
+                transform = data['transform']
+                print("transform", transform.shape)
+                print("transform", transform)
+                inv_transform = torch.inverse(transform).to(device)
                 camera_pos_base = nerf.transform_points_torch(camera_pos_base, inv_transform)
                 input_rays_base = nerf.transform_points_torch(
                     input_rays_base, inv_transform.unsqueeze(1).unsqueeze(2), translate=False)
@@ -158,9 +164,8 @@ class SRTTrainer:
                 transform = None
 
             input_images_np = np.transpose(input_images.cpu().numpy(), (0, 1, 3, 4, 2))
-
+            input_images = input_images.to(dtype=torch.float)
             z = self.model.encoder(input_images, input_camera_pos, input_rays)
-
             batch_size, num_input_images, height, width, _ = input_rays.shape
 
             num_angles = 6
@@ -172,19 +177,24 @@ class SRTTrainer:
 
             all_extras = []
             for i in range(num_angles):
-                angle = i * (2 * math.pi / num_angles)
-                angle_deg = (i * 360) // num_angles
+                rotation_angle = 2 * math.pi/18
+                angle = i * (rotation_angle/ num_angles)
+                # angle = i * (2 * math.pi / num_angles)
+                # angle_deg = (i * 360) // num_angles
+                angle_deg = (i * 30) // num_angles
 
                 camera_pos_rot = nerf.rotate_around_z_axis_torch(camera_pos_base, angle)
                 rays_rot = nerf.rotate_around_z_axis_torch(input_rays_base, angle)
 
                 if transform is not None:
+                    transform = transform.to(device)
                     camera_pos_rot = nerf.transform_points_torch(camera_pos_rot, transform)
                     rays_rot = nerf.transform_points_torch(
                         rays_rot, transform.unsqueeze(1).unsqueeze(2), translate=False)
 
                 img, extras = self.render_image(z, camera_pos_rot, rays_rot, **self.render_kwargs)
                 all_extras.append(extras)
+                print("img", img.shape)
                 columns.append((f'render {angle_deg}°', img.cpu().numpy(), 'image'))
 
             for i, extras in enumerate(all_extras):

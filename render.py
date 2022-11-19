@@ -13,8 +13,19 @@ from srt.utils.visualize import visualize_2d_cluster, get_clustering_colors
 from srt.utils.nerf import rotate_around_z_axis_torch, get_camera_rays, transform_points_torch, get_extrinsic_torch
 from srt.model import SRT
 from srt.trainer import SRTTrainer
+from srt.data.ray_utils import get_rays, get_ray_directions
 
 from compile_video import compile_video_render
+
+def move_camera_pose(pose, progress):
+    # control the camera move (spiral pose)
+    print("pose", pose.shape)
+    t = progress * np.pi * 4
+    radii = 0.0009
+    # radii = 0
+    center = np.array([np.cos(t), -np.sin(t), -np.sin(0.5 * t)]) * radii
+    pose[:3, 3] += pose[:3, :3] @ center
+    return pose
 
 
 def get_camera_rays_render(camera_pos, **kwargs):
@@ -66,19 +77,31 @@ def rotate_camera(camera_pos, rays, t):
     return camera_pos, rays
 
 
-def render3d(trainer, render_path, z, camera_pos, motion, transform=None, resolution=None, **render_kwargs):
+def render3d(trainer, render_path, z, camera_pos, motion, transform=None, resolution=None, c2w=None, focal=None, **render_kwargs):
     if transform is not None:  # Project camera into world space before applying motion transformations
         inv_transform = torch.inverse(transform)
         camera_pos = transform_points_torch(camera_pos, inv_transform)
 
     camera_pos_np = camera_pos.cpu().numpy()
-    rays = torch.Tensor(get_camera_rays_render(camera_pos_np, **resolution)).to(camera_pos)
+    # camera_pos_np = camera_pos
+    #rays = torch.Tensor(get_camera_rays_render(camera_pos_np, **resolution)).to(camera_pos)
 
     for frame in tqdm(range(args.num_frames)):
         t = frame / args.num_frames
         if args.fade:
             t = apply_fade(t)
-        if motion == 'rotate':  # Rotate camera around scene, tracking scene's center
+        if motion == 'spiral':
+            new_c2w = move_camera_pose(c2w, t)
+            h = resolution["height"]
+            w = resolution["width"]
+            directions = get_ray_directions(h, w, focal) # (h, w, 3)
+            new_c2w = torch.FloatTensor(new_c2w)[:3, :4]
+            rays_o, rays_d = get_rays(directions.float(), new_c2w)
+            cur_rays = rays_d.unsqueeze(0).cuda()
+            # rays_o, rays_d = get_rays(directions.float(), c2w)
+            cur_camera_pos = new_c2w[:, 3].unsqueeze(0).cuda()
+            print("cur_rays, cur_camera pos", cur_rays.shape, cur_camera_pos.shape)
+        elif motion == 'rotate':  # Rotate camera around scene, tracking scene's center
             cur_camera_pos, cur_rays = rotate_camera(camera_pos, rays, t)
         elif motion == 'zoom':  # Stationary camera and track point, zoom in by reducing sensor width
             sensor_max = 0.032
@@ -136,6 +159,8 @@ def process_scene(sceneid):
     input_images = torch.Tensor(data['input_images']).to(device).unsqueeze(0)
     input_camera_pos = torch.Tensor(data['input_camera_pos']).to(device).unsqueeze(0)
     input_rays = torch.Tensor(data['input_rays']).to(device).unsqueeze(0)
+    input_poses = data['input_poses']
+    focal = data['focal']
 
     resolution = {'height': input_rays.shape[2],
                   'width': input_rays.shape[3]}
@@ -155,9 +180,12 @@ def process_scene(sceneid):
 
     with torch.no_grad():
         z = model.encoder(input_images, input_camera_pos, input_rays)
+        print("z", z.shape)
                                           
+        # render3d(trainer, render_path, z, input_camera_pos[:, 0],
+        #          motion=args.motion, transform=transform, resolution=resolution, **render_kwargs)
         render3d(trainer, render_path, z, input_camera_pos[:, 0],
-                 motion=args.motion, transform=transform, resolution=resolution, **render_kwargs)
+                 motion=args.motion, transform=transform, resolution=resolution,  c2w = input_poses[0], focal = focal, **render_kwargs)
 
     if not args.novideo:
         compile_video_render(render_path)
@@ -201,6 +229,7 @@ if __name__ == '__main__':
     else:
         render_kwargs = dict()
 
+    print("render_kwargs", render_kwargs)
     model = SRT(cfg['model']).to(device)
     model.eval()
 

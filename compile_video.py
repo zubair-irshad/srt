@@ -100,7 +100,7 @@ def compile_video_plot(path, small=False, frames=False, num_frames=1000000000):
 def compile_video_render(path):
     frame_placeholder = os.path.join(path, 'renders', '%d.png')
     video_out_file = os.path.join(path, 'video-renders.mp4')
-    subprocess.call(['ffmpeg', '-y', '-framerate', '60', '-i', frame_placeholder,
+    subprocess.call(['ffmpeg', '-y', '-framerate', '10', '-i', frame_placeholder,
                      '-pix_fmt', 'yuv420p', '-b:v', '1M', '-threads', '1', video_out_file])
 
 if __name__ == '__main__':

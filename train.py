@@ -70,7 +70,9 @@ if __name__ == '__main__':
 
     out_dir = os.path.dirname(args.config)
 
+    print("world_size", world_size)
     batch_size = cfg['training']['batch_size'] // world_size
+    print("batch_size", batch_size)
 
     model_selection_metric = cfg['training']['model_selection_metric']
     if cfg['training']['model_selection_mode'] == 'maximize':
