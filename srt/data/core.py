@@ -32,7 +32,7 @@ def get_dataset(mode, cfg, max_len=None, full_scale=False):
         dataset = data.NMRDataset(dataset_folder, mode, points_per_item=points_per_item,
                                   max_len=max_len, full_scale=full_scale, **kwargs)
         
-    if dataset_type == 'pd':
+    elif dataset_type == 'pd':
         dataset = data.PDMultiObject_AE_NOCS(dataset_folder, mode)
     elif dataset_type == 'objectron':
         dataset_folder = os.path.join(dataset_folder, cfg['cat'])
