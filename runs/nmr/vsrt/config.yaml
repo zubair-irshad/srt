@@ -2,6 +2,7 @@
 data:
   dataset: nmr
   num_points: 256
+  path : '/experiments/zubair/datasets/NMR_Dataset'
 model:
   encoder_kwargs:
     pos_start_octave: -5
