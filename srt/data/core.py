@@ -14,6 +14,7 @@ def get_dataset(mode, cfg, max_len=None, full_scale=False):
         full_scale: Provide full images as targets, instead of a sampled set of pixels
     '''
     dataset_type = cfg['dataset']
+    print("dataset_type", dataset_type)
 
     dataset_folder = f'data/{dataset_type}'
     if 'path' in cfg:

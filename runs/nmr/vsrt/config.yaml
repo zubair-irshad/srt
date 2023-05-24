@@ -1,6 +1,6 @@
 
 data:
-  dataset: nmr
+  dataset: 'nmr'
   num_points: 256
   path : '/experiments/zubair/datasets/NMR_Dataset'
 model:
