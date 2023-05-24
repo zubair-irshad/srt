@@ -4,9 +4,10 @@ data:
   num_points: 256
   path : '/experiments/zubair/datasets/NMR_Dataset'
 model:
+  encoder: isrt
   encoder_kwargs:
     pos_start_octave: -5
-  decoder: nerf
+  decoder: isrt
   decoder_kwargs:
     pos_start_octave: -5
 training:
