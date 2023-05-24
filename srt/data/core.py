@@ -31,7 +31,7 @@ def get_dataset(mode, cfg, max_len=None, full_scale=False):
     if dataset_type == 'nmr':
         dataset = data.NMRDataset(dataset_folder, mode, points_per_item=points_per_item,
                                   max_len=max_len, full_scale=full_scale, **kwargs)
-    if dataset_type == 'objectron':
+    elif dataset_type == 'objectron':
         dataset_folder = os.path.join(dataset_folder, cfg['cat'])
         dataset = data.ObjectronMultiDataset(dataset_folder, mode, points_per_item=points_per_item, 
                                              full_scale=full_scale, **kwargs)
